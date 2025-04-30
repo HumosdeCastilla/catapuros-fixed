@@ -12,6 +12,7 @@ export default function App() {
   const [mostrarFicha, setMostrarFicha] = useState(false);
   const [busqueda, setBusqueda] = useState('');
   const [soloFavoritos, setSoloFavoritos] = useState(false);
+  const [fichaSeleccionada, setFichaSeleccionada] = useState(null);
   const fichaRef = useRef();
 
   useEffect(() => {
@@ -57,7 +58,8 @@ export default function App() {
   const descargarFicha = async () => {
     const canvas = await html2canvas(fichaRef.current);
     const link = document.createElement('a');
-    link.download = `${form.nombre}_cata.png`;
+    const nombre = fichaSeleccionada?.nombre || form.nombre || "cata";
+    link.download = `${nombre}_cata.png`;
     link.href = canvas.toDataURL();
     link.click();
   };
@@ -112,7 +114,7 @@ export default function App() {
 
   return (
     <div style={containerStyle}>
-      {!mostrarFicha ? (
+      {!mostrarFicha && !fichaSeleccionada && (
         <form onSubmit={handleSubmit} style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
           <h2 style={{ textAlign: 'center' }}>🌿 Cata de Puros</h2>
           {['nombre','marca','origen','tiempo','aroma','sabor','fortaleza','tiro'].map(name => (
@@ -132,44 +134,37 @@ export default function App() {
           <input type="number" name="puntuacionTiro" min="0" max="10" onChange={handleChange} required style={inputStyle} />
           <button type="submit" style={buttonStyle}>💾 Guardar cata</button>
         </form>
-      ) : (
+      )}
+
+      {(mostrarFicha || fichaSeleccionada) && (
         <div>
-          <div ref={fichaRef} style={{ padding: 20, background: '#292929', borderRadius: 12, marginBottom: 16 }}>
-            <h2 style={{ textAlign: 'center', marginBottom: 10 }}>{form.nombre}</h2>
-            <img src={imagen} crossOrigin="anonymous" alt="Puro" onError={e => e.target.src = 'https://via.placeholder.com/600x400?text=Sin+imagen'}
-              style={{ width: '100%', borderRadius: 8, marginBottom: 12, boxShadow: '0 0 10px rgba(0,0,0,0.6)' }} />
-            <p><strong>Marca:</strong> {form.marca}</p>
-            <p><strong>Origen:</strong> {form.origen}</p>
-            <p><strong>Tiempo:</strong> {form.tiempo} minutos</p>
-            <p><strong>Aroma:</strong> {form.aroma}</p>
-            <p><strong>Sabor:</strong> {form.sabor}</p>
-            <p><strong>Fortaleza:</strong> {form.fortaleza}</p>
-            <p><strong>Tiro:</strong> {form.tiro}</p>
-            <p><strong>Notas:</strong> {form.notas}</p>
-            <p><strong>Punt. Aroma:</strong> {form.puntuacionAroma}/10</p>
-            <p><strong>Punt. Sabor:</strong> {form.puntuacionSabor}/10</p>
-            <p><strong>Punt. Tiro:</strong> {form.puntuacionTiro}/10</p>
-            <p style={{ fontSize: '1.5rem', marginTop: '1rem' }}>
-              ⭐ <strong>Calificación:</strong> {((+form.puntuacionAroma + +form.puntuacionSabor + +form.puntuacionTiro) / 3).toFixed(1)}/10
+          <div ref={fichaRef} style={{ padding: 20, background: '#292929', borderRadius: 12 }}>
+            <h2 style={{ textAlign: 'center' }}>{(fichaSeleccionada || form).nombre}</h2>
+            <img src={(fichaSeleccionada || { imagen }).imagen} alt="Puro" style={{ width: '100%', borderRadius: 8, marginBottom: 12 }} />
+            {Object.entries(fichaSeleccionada || form).map(([key, value]) => (
+              key !== 'imagen' && key !== 'favorita' && key !== 'fecha' && (
+                <p key={key}><strong>{key}:</strong> {value}</p>
+              )
+            ))}
+            <p style={{ fontSize: '1.5rem' }}>
+              ⭐ <strong>Calificación:</strong> {(fichaSeleccionada || form).calificacion}/10
             </p>
           </div>
           <button onClick={descargarFicha} style={{ ...buttonStyle, background: '#2196f3' }}>📸 Descargar Ficha</button>
-          <button onClick={() => setMostrarFicha(false)} style={{ ...buttonStyle, background: '#9c27b0' }}>➕ Nueva Cata</button>
+          <button onClick={() => {
+            setMostrarFicha(false);
+            setFichaSeleccionada(null);
+          }} style={{ ...buttonStyle, background: '#9c27b0' }}>🔙 Volver</button>
         </div>
       )}
 
-      {historial.length > 0 && (
+      {historial.length > 0 && !mostrarFicha && !fichaSeleccionada && (
         <div style={{ marginTop: 40 }}>
           <h3 style={{ textAlign: 'center' }}>📚 Historial</h3>
 
-          <button
-            onClick={() => setSoloFavoritos(!soloFavoritos)}
-            style={{
-              ...buttonStyle,
-              background: soloFavoritos ? '#757575' : '#ffd700',
-              marginBottom: 12
-            }}
-          >
+          <button onClick={() => setSoloFavoritos(!soloFavoritos)} style={{
+            ...buttonStyle, background: soloFavoritos ? '#757575' : '#ffd700'
+          }}>
             {soloFavoritos ? '👁 Ver todos' : '🌟 Ver solo favoritos'}
           </button>
 
@@ -195,57 +190,16 @@ export default function App() {
               const favorito = soloFavoritos ? item.favorita : true;
               return coincide && favorito;
             })
-            .sort((a, b) => b.favorita - a.favorita)
             .map((item, i) => (
-              <div key={i} style={{
+              <div key={i} onClick={() => setFichaSeleccionada(item)} style={{
                 background: '#2a2a2a',
                 padding: 10,
                 borderRadius: 8,
                 marginTop: 12,
                 position: 'relative',
-                border: item.favorita ? '2px solid gold' : '1px solid #444'
+                border: item.favorita ? '2px solid gold' : '1px solid #444',
+                cursor: 'pointer'
               }}>
-                <button
-                  onClick={() => {
-                    const actualizado = [...historial];
-                    const index = historial.indexOf(item);
-                    actualizado[index].favorita = !actualizado[index].favorita;
-                    setHistorial(actualizado);
-                  }}
-                  style={{
-                    position: 'absolute',
-                    top: 6,
-                    left: 6,
-                    background: item.favorita ? '#ffd700' : '#555',
-                    border: 'none',
-                    borderRadius: 4,
-                    color: '#000',
-                    padding: '4px 8px',
-                    cursor: 'pointer'
-                  }}
-                >⭐</button>
-
-                <button
-                  onClick={() => {
-                    const confirmado = confirm(`¿Eliminar la cata de "${item.nombre}"?`);
-                    if (confirmado) {
-                      const nuevoHistorial = historial.filter(h => h !== item);
-                      setHistorial(nuevoHistorial);
-                    }
-                  }}
-                  style={{
-                    position: 'absolute',
-                    top: 6,
-                    right: 6,
-                    background: '#e53935',
-                    border: 'none',
-                    borderRadius: 4,
-                    color: '#fff',
-                    padding: '4px 8px',
-                    cursor: 'pointer'
-                  }}
-                >🗑</button>
-
                 <p><strong>{item.nombre}</strong> — {item.calificacion}/10</p>
                 <img src={item.imagen} alt="" style={{ width: '100%', borderRadius: 6 }} />
                 <small>{new Date(item.fecha).toLocaleString()}</small>
